@@ -1,59 +1,41 @@
 const axios = require('axios');
-const cheerio = require('cheerio');
 
-async function scrapeNpm(keyword = 'axios') {
-  const url = `https://www.npmjs.com/search?q=${encodeURIComponent(keyword)}`;
-
+async function searchNpm(keyword) {
   try {
-    const { data: html } = await axios.get(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml'
-      },
-      timeout: 15000
-    });
-
-    const $ = cheerio.load(html);
-    const packages = [];
-
-    $('a[href^="/package/"]').each((i, el) => {
-      const href = $(el).attr('href');
-
-      if (!href || href === '/package/') return;
-
-      const name = $(el).text().trim();
-
-      if (!name) return;
-
-      packages.push({
-        name,
-        url: `https://www.npmjs.com${href}`
-      });
-    });
-
-    // hapus duplicate
-    const unique = [
-      ...new Map(
-        packages.map(pkg => [pkg.name, pkg])
-      ).values()
-    ];
+    const { data } = await axios.get(
+      `https://registry.npmjs.org/-/v1/search`,
+      {
+        params: {
+          text: keyword,
+          size: 20
+        },
+        headers: {
+          'User-Agent': 'Mozilla/5.0'
+        }
+      }
+    );
 
     return {
       success: true,
-      data: unique,
-      message: `Berhasil scrape ${unique.length} package`
+      data: data.objects.map(item => ({
+        name: item.package.name,
+        version: item.package.version,
+        description: item.package.description,
+        author: item.package.publisher?.username || null,
+        links: item.package.links
+      })),
+      message: 'Berhasil mengambil data npm'
     };
 
   } catch (err) {
     return {
       success: false,
       data: null,
-      message: err.message
+      message: err.response?.data || err.message
     };
   }
 }
 
-scrapeNpm('axios')
-  .then(result => {
-    console.log(JSON.stringify(result, null, 2));
-  });
+searchNpm('axios').then(result => {
+  console.log(JSON.stringify(result, null, 2));
+});
